@@ -28,3 +28,25 @@ needed.
 brew uninstall --cask ercansavas/tap/timeflow          # remove the app
 brew uninstall --zap --cask ercansavas/tap/timeflow    # also remove local data
 ```
+
+## Publishing a new version (maintainers)
+
+1. Build the `.dmg` (in the TimeFlowApp repo):
+   ```sh
+   ./scripts/build-dmg.sh
+   ```
+2. From a clone of this tap, publish it:
+   ```sh
+   ./scripts/publish-release.sh <version> <path-to-TimeFlow.dmg>
+   # e.g. ./scripts/publish-release.sh 0.2.2 ~/build/TimeFlow.dmg
+   ```
+
+The script creates the `vX.Y.Z` GitHub Release with the `.dmg`, bumps
+`version` + `sha256` in `Casks/timeflow.rb`, and commits + pushes. The web
+download button points at `releases/latest/download/TimeFlow.dmg`, so it picks
+up the new build automatically — no web change per release.
+
+Users then update with:
+```sh
+brew update && brew upgrade --cask ercansavas/tap/timeflow
+```
