@@ -8,7 +8,7 @@ cask "timeflow" do
   desc "Menubar time-tracker with coding analytics for Apple Silicon"
   homepage "https://github.com/ercansavas/homebrew-tap"
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
   depends_on arch: :arm64
 
   app "TimeFlow.app"
