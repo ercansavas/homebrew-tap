@@ -22,10 +22,22 @@ cask "timeflow" do
                    args: ["-dr", "com.apple.quarantine", "#{appdir}/TimeFlow.app"]
   end
 
+  # Quit the menubar app (which stops its child processes: bundled node backend,
+  # aw-server, aw-watcher) before replacing/removing the bundle, so upgrades and
+  # uninstalls never race a running instance.
   uninstall quit: "com.timeflow.menubar"
 
+  # `brew uninstall --zap ercansavas/tap/timeflow` removes EVERYTHING the app
+  # writes — no hand-rolled `rm -rf`. Covers runtime data, UserDefaults, the
+  # WKWebView dashboard storage, and system caches.
   zap trash: [
     "~/.timeflow",
     "~/Library/Application Support/TimeFlow",
+    "~/Library/Preferences/com.timeflow.menubar.plist",
+    "~/Library/Caches/com.timeflow.menubar",
+    "~/Library/HTTPStorages/com.timeflow.menubar",
+    "~/Library/HTTPStorages/com.timeflow.menubar.binarycookies",
+    "~/Library/WebKit/com.timeflow.menubar",
+    "~/Library/Saved Application State/com.timeflow.menubar.savedState",
   ]
 end
