@@ -1,6 +1,6 @@
 cask "timeflow" do
-  version "0.2.6"
-  sha256 "3b02d7bf6609b2940151e7d90175672eb6f5b57d968ac67f2a71371e3509fa43"
+  version "0.2.7"
+  sha256 "d5e0bbdac5bed7f45948ad9b162407c24d1f02998625fb7a31e7df19eb154268"
 
   url "https://github.com/ercansavas/homebrew-tap/releases/download/v#{version}/TimeFlow.dmg",
       verified: "github.com/ercansavas/homebrew-tap/"
