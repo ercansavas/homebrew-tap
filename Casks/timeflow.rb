@@ -1,6 +1,6 @@
 cask "timeflow" do
-  version "0.4.25"
-  sha256 "03dd81c724e5e357e53a9577ae98e95b497f1aec62c54f8077a03f9dc8099677"
+  version "0.4.26"
+  sha256 "7f5a98350c7a5393b4d4184ca67535dc833974a51cef2c44b5043bf9fd2aae24"
 
   url "https://github.com/ercansavas/homebrew-tap/releases/download/v#{version}/TimeFlow.dmg",
       verified: "github.com/ercansavas/homebrew-tap/"
@@ -13,10 +13,11 @@ cask "timeflow" do
 
   app "TimeFlow.app"
 
-  # Soft launch: TimeFlow is ad-hoc signed (not yet notarized), so downloads
-  # carry the macOS quarantine flag and Gatekeeper blocks first launch. Strip
-  # it after install so `brew install` gives a clean, no-prompt open. This
-  # postflight is removed once the app ships notarized through Apple Developer.
+  # Soft launch: TimeFlow is signed with a stable self-signed identity rather
+  # than a notarized Developer ID one, so downloads still carry the macOS
+  # quarantine flag and Gatekeeper blocks first launch. Strip it after install
+  # so `brew install` gives a clean, no-prompt open. This postflight is removed
+  # once the app ships notarized through Apple Developer.
   postflight do
     system_command "/usr/bin/xattr",
                    args: ["-dr", "com.apple.quarantine", "#{appdir}/TimeFlow.app"]
