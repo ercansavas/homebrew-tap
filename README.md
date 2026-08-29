@@ -35,16 +35,19 @@ brew uninstall --zap --cask ercansavas/tap/timeflow    # also remove local data
    ```sh
    ./scripts/build-dmg.sh
    ```
-2. From a clone of this tap, publish it:
+2. From a clone of this tap, publish it (version is read from the DMG plist,
+   not passed as an argument):
    ```sh
-   ./scripts/publish-release.sh <version> <path-to-TimeFlow.dmg>
-   # e.g. ./scripts/publish-release.sh 0.2.2 ~/build/TimeFlow.dmg
+   ./scripts/publish-release.sh [--dry-run] <path-to-TimeFlow.dmg>
+   # e.g. ./scripts/publish-release.sh ~/build/TimeFlow.dmg
    ```
 
-The script creates the `vX.Y.Z` GitHub Release with the `.dmg`, bumps
-`version` + `sha256` in `Casks/timeflow.rb`, and commits + pushes. The web
-download button points at `releases/latest/download/TimeFlow.dmg`, so it picks
-up the new build automatically — no web change per release.
+The script mints the version from `CFBundleShortVersionString` inside the
+`.dmg`, creates the `vX.Y.Z` GitHub Release with the asset named
+`TimeFlow.dmg`, bumps `version` + `sha256` in `Casks/timeflow.rb`, and
+commits + pushes. The web download button points at
+`releases/latest/download/TimeFlow.dmg`, so it picks up the new build
+automatically — no web change per release.
 
 Users then update with:
 ```sh
