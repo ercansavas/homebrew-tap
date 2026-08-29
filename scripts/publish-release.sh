@@ -82,6 +82,12 @@ version_from_dmg() {
 }
 
 VERSION="$(version_from_dmg "$DMG")"
+# PlistBuddy succeeds on <string></string>; without this guard TAG becomes "v"
+# and --dry-run exits 0. Non-empty is the gate — no semver parsing.
+if [[ -z "$VERSION" ]]; then
+  echo "error: CFBundleShortVersionString is empty in dmg: $DMG" >&2
+  exit 1
+fi
 readonly VERSION
 
 # Operate from the repo root so it works from anywhere inside the clone.

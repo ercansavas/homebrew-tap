@@ -81,9 +81,34 @@ EOF
   hdiutil create -srcfolder "$APP_SRC" -volname "TimeFlowFixture" -ov -format UDZO "$FIXTURE_DMG" >/dev/null
 }
 
+# Same safety stubs as (A)/(B). Empty CFBundleShortVersionString — PlistBuddy
+# succeeds but VERSION=""; file not named TimeFlow.dmg.
+build_empty_version_fixture_dmg() {
+  EMPTY_FIXTURE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/g4-empty-fixture.XXXXXX")"
+  local app_src="$EMPTY_FIXTURE_DIR/app"
+  mkdir -p "$app_src/TimeFlow.app/Contents"
+  cat >"$app_src/TimeFlow.app/Contents/Info.plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleShortVersionString</key>
+  <string></string>
+  <key>CFBundleIdentifier</key>
+  <string>com.timeflow.menubar</string>
+</dict>
+</plist>
+EOF
+  EMPTY_FIXTURE_DMG="$EMPTY_FIXTURE_DIR/empty-version-fixture.dmg"
+  hdiutil create -srcfolder "$app_src" -volname "TimeFlowEmptyVer" -ov -format UDZO "$EMPTY_FIXTURE_DMG" >/dev/null
+}
+
 cleanup_fixture() {
   if [[ -n "${FIXTURE_DIR:-}" && -d "$FIXTURE_DIR" ]]; then
     rm -rf "$FIXTURE_DIR"
+  fi
+  if [[ -n "${EMPTY_FIXTURE_DIR:-}" && -d "$EMPTY_FIXTURE_DIR" ]]; then
+    rm -rf "$EMPTY_FIXTURE_DIR"
   fi
 }
 
@@ -143,13 +168,45 @@ test_B_extra_positional_exits_2() {
   pass "$name"
 }
 
+# (C) Empty CFBundleShortVersionString must exit 1 (attach/read class), not
+# mint TAG=v / dry-run success. Before the guard: attach+PlistBuddy succeed,
+# VERSION="", dry-run exits 0 — asserting exit 1 is therefore RED.
+test_C_empty_version_exits_1() {
+  local name="(C) dry-run with empty CFBundleShortVersionString exits 1"
+  local out rc
+  set +e
+  out="$("$SCRIPT" --dry-run "$EMPTY_FIXTURE_DMG" 2>&1)"
+  rc=$?
+  set -e
+
+  if [[ "$rc" -ne 1 ]]; then
+    fail "$name" "expected exit 1, got $rc; output: $out"
+    return
+  fi
+  if echo "$out" | grep -q '✓ dry-run: would publish'; then
+    fail "$name" "must not print dry-run success; output: $out"
+    return
+  fi
+  if echo "$out" | grep -qE '→ version :[[:space:]]*$'; then
+    fail "$name" "must not print empty version as successful mint; output: $out"
+    return
+  fi
+  if echo "$out" | grep -q 'FORBIDDEN gh:'; then
+    fail "$name" "must not call gh; output: $out"
+    return
+  fi
+  pass "$name"
+}
+
 # ---- run --------------------------------------------------------------------
 
 setup_stubs
 build_fixture_dmg
+build_empty_version_fixture_dmg
 
 test_A_dry_run_mints_plist_version
 test_B_extra_positional_exits_2
+test_C_empty_version_exits_1
 
 cleanup_fixture
 cleanup_stubs
