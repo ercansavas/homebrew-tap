@@ -61,9 +61,15 @@ version_from_dmg() {
   local dmg="$1"
   local mnt version
   mnt="$(mktemp -d "${TMPDIR:-/tmp}/timeflow-dmg.XXXXXX")"
-  if ! hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg" >/dev/null; then
+  # Measured: attaching an image that is ALREADY attached exits 1 with the unique
+  # mountpoint left empty. The pre-publish check in AGENTS.md mounts this very DMG
+  # to read the bundle id and signing leaf, so a still-mounted volume is the most
+  # likely reason publishing stops here — say so instead of a bare attach error.
+  if ! hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg" >/dev/null 2>&1; then
     rmdir "$mnt" 2>/dev/null || true
     echo "error: failed to attach dmg: $dmg" >&2
+    echo "hint: it may already be mounted (the pre-publish bundle-id/signature check does that)." >&2
+    echo "      check with: hdiutil info | grep -i timeflow    then: hdiutil detach <mountpoint>" >&2
     exit 1
   fi
   if ! version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \

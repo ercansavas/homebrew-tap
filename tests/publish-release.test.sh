@@ -198,6 +198,45 @@ test_C_empty_version_exits_1() {
   pass "$name"
 }
 
+# (D) The DMG already mounted (exactly what the AGENTS.md pre-publish check
+# leaves behind) must fail loudly and name that cause, never publish.
+test_D_already_mounted_exits_1() {
+  local name="(D) an already-mounted dmg exits 1 and names the cause"
+  local out rc pre
+  pre="$(mktemp -d "${TMPDIR:-/tmp}/g4-preattach.XXXXXX")"
+  if ! hdiutil attach -nobrowse -readonly -mountpoint "$pre" "$FIXTURE_DMG" >/dev/null 2>&1; then
+    rmdir "$pre" 2>/dev/null || true
+    fail "$name" "could not pre-attach the fixture dmg"
+    return
+  fi
+
+  set +e
+  out="$("$SCRIPT" --dry-run "$FIXTURE_DMG" 2>&1)"
+  rc=$?
+  set -e
+
+  hdiutil detach "$pre" >/dev/null 2>&1 || true
+  rmdir "$pre" 2>/dev/null || true
+
+  if [[ "$rc" -ne 1 ]]; then
+    fail "$name" "expected exit 1, got $rc; output: $out"
+    return
+  fi
+  if echo "$out" | grep -q '✓ dry-run: would publish'; then
+    fail "$name" "must not publish from an already-mounted image; output: $out"
+    return
+  fi
+  if ! echo "$out" | grep -qi 'already be mounted'; then
+    fail "$name" "error must name the already-mounted cause; output: $out"
+    return
+  fi
+  if echo "$out" | grep -q 'FORBIDDEN gh:'; then
+    fail "$name" "must not call gh; output: $out"
+    return
+  fi
+  pass "$name"
+}
+
 # ---- run --------------------------------------------------------------------
 
 setup_stubs
@@ -207,6 +246,7 @@ build_empty_version_fixture_dmg
 test_A_dry_run_mints_plist_version
 test_B_extra_positional_exits_2
 test_C_empty_version_exits_1
+test_D_already_mounted_exits_1
 
 cleanup_fixture
 cleanup_stubs
