@@ -30,6 +30,33 @@ cask "timeflow" do
     # type by hand anyway.
     system_command "/usr/bin/open", args: ["-a", "#{appdir}/TimeFlow.app"]
 
+    # ...and confirm that actually took. `uninstall quit:` needs Automation access
+    # for "Terminal -> System Events"; without it brew prints "did not quit" and
+    # replaces the bundle under a still-running instance. `open -a` is then a
+    # no-op, because something IS already running — and that something dies with
+    # the bundle it was replaced from moments later, leaving nothing at all. The
+    # upgrade reports success, the menubar is empty, and tracking is off until the
+    # user happens to notice. Observed on a real upgrade 2026-09-03; it is the
+    # same silent stop that once cost a user eleven days.
+    #
+    # So wait out the doomed instance, then look again and relaunch if needed. If
+    # even that fails, SAY SO — a warning the user can act on beats data that
+    # quietly stops arriving.
+    exe = "#{appdir}/TimeFlow.app/Contents/MacOS/TimeFlowMenuBar"
+    running = lambda do
+      system_command("/usr/bin/pgrep", args: ["-f", exe], must_succeed: false)
+        .exit_status.to_i.zero?
+    end
+    sleep 10
+    unless running.call
+      system_command "/usr/bin/open", args: ["-a", "#{appdir}/TimeFlow.app"], must_succeed: false
+      sleep 5
+    end
+    unless running.call
+      opoo "TimeFlow yukseltmeden sonra kendiliginden acilmadi. Menu cubugunda simge " \
+           "yoksa uygulamayi elle acin — acilana kadar zaman takibi calismaz."
+    end
+
     # The accessibility grant is pinned to this signing leaf, not to the bundle
     # id or the cdhash, which is why permission survives ordinary upgrades. If it
     # ever changes, every user silently loses tracking permission, so say so here
