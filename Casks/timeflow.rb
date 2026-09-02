@@ -1,6 +1,6 @@
 cask "timeflow" do
-  version "0.5.6"
-  sha256 "9be05245d781cc07acc5a0247d82529d960ee9a292ad4cc898c6575aa3b71f2a"
+  version "0.5.7"
+  sha256 "6b3a6ac8bdc1db64312701b010500d1155af005bbd25591cfaf9ebc170439e76"
 
   url "https://github.com/ercansavas/homebrew-tap/releases/download/v#{version}/TimeFlow.dmg",
       verified: "github.com/ercansavas/homebrew-tap/"
@@ -21,6 +21,28 @@ cask "timeflow" do
   postflight do
     system_command "/usr/bin/xattr",
                    args: ["-dr", "com.apple.quarantine", "#{appdir}/TimeFlow.app"]
+
+    # Reopen after an upgrade. `uninstall quit:` below stops the app so the
+    # bundle can be replaced safely, but nothing ever started it again: the user
+    # saw a successful upgrade and a menubar with no icon, and tracking stayed
+    # silently off until they happened to notice. One user went eleven days that
+    # way. On a fresh install this is what the setup instructions asked people to
+    # type by hand anyway.
+    system_command "/usr/bin/open", args: ["-a", "#{appdir}/TimeFlow.app"]
+
+    # The accessibility grant is pinned to this signing leaf, not to the bundle
+    # id or the cdhash, which is why permission survives ordinary upgrades. If it
+    # ever changes, every user silently loses tracking permission, so say so here
+    # rather than letting it be discovered from missing data weeks later.
+    expected_leaf = "59a7b2e3efec5f1404f959037508793288eda57d"
+    req = system_command("/usr/bin/codesign",
+                         args: ["-d", "--requirements", "-", "#{appdir}/TimeFlow.app"],
+                         must_succeed: false)
+    leaf = "#{req.stdout}#{req.stderr}"[/certificate leaf = H"([a-f0-9]{40})"/, 1]
+    if leaf && leaf != expected_leaf
+      opoo "TimeFlow imza sertifikasi degismis — Erisilebilirlik izni dusmus olabilir. " \
+           "Sistem Ayarlari > Gizlilik ve Guvenlik > Erisilebilirlik: TimeFlow'u kaldirip yeniden ekleyin."
+    end
   end
 
   # Quit the menubar app (which stops its child processes: bundled node backend,
