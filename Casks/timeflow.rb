@@ -22,39 +22,56 @@ cask "timeflow" do
     system_command "/usr/bin/xattr",
                    args: ["-dr", "com.apple.quarantine", "#{appdir}/TimeFlow.app"]
 
-    # Reopen after an upgrade. `uninstall quit:` below stops the app so the
-    # bundle can be replaced safely, but nothing ever started it again: the user
-    # saw a successful upgrade and a menubar with no icon, and tracking stayed
-    # silently off until they happened to notice. One user went eleven days that
-    # way. On a fresh install this is what the setup instructions asked people to
-    # type by hand anyway.
+    # Reopen after an upgrade — and make sure the thing that comes back is the build we
+    # just installed.
+    #
+    # By the time postflight runs, brew has ALREADY replaced the bundle. So any TimeFlow
+    # still running is executing the REPLACED binary: it is stale by construction. That
+    # happens whenever the `uninstall quit:` above did not take — it needs Automation access
+    # for "Terminal -> System Events", which a colleague's Mac will not have until they
+    # approve a dialog, and which they may simply decline.
+    #
+    # Merely checking "is something running" cannot see this, and an earlier version of this
+    # postflight made exactly that mistake: it found the stale process, called the relaunch
+    # good, and left the old build running while `brew upgrade` reported success. Observed on
+    # a real upgrade 2026-09-03 — on-disk 0.5.14, in-memory 0.5.13, for hours.
+    #
+    # SIGTERM rather than AppleScript: it needs no permission at all, and the app treats it as
+    # a first-class shutdown (AppDelegate installs DispatchSourceSignal handlers that run the
+    # same cleanup as applicationWillTerminate — children reaped, clean-exit marker written),
+    # so nothing is left half-finished.
+    exe = "#{appdir}/TimeFlow.app/Contents/MacOS/TimeFlowMenuBar"
+    running_pids = lambda do
+      system_command("/usr/bin/pgrep", args: ["-f", exe], must_succeed: false)
+        .stdout.split("\n").map(&:strip).reject(&:empty?)
+    end
+
+    stale = running_pids.call
+    unless stale.empty?
+      opoo "TimeFlow hala eski surumle calisiyor (uygulama kapatilamadi) — durdurulup yeniden aciliyor."
+      system_command("/bin/kill", args: ["-TERM", *stale], must_succeed: false)
+      # Give the clean-shutdown path its moment before falling back to force.
+      12.times do
+        break if running_pids.call.empty?
+
+        sleep 1
+      end
+      leftover = running_pids.call
+      system_command("/bin/kill", args: ["-KILL", *leftover], must_succeed: false) unless leftover.empty?
+    end
+
     system_command "/usr/bin/open", args: ["-a", "#{appdir}/TimeFlow.app"]
 
-    # ...and confirm that actually took. `uninstall quit:` needs Automation access
-    # for "Terminal -> System Events"; without it brew prints "did not quit" and
-    # replaces the bundle under a still-running instance. `open -a` is then a
-    # no-op, because something IS already running — and that something dies with
-    # the bundle it was replaced from moments later, leaving nothing at all. The
-    # upgrade reports success, the menubar is empty, and tracking is off until the
-    # user happens to notice. Observed on a real upgrade 2026-09-03; it is the
-    # same silent stop that once cost a user eleven days.
-    #
-    # So wait out the doomed instance, then look again and relaunch if needed. If
-    # even that fails, SAY SO — a warning the user can act on beats data that
-    # quietly stops arriving.
-    exe = "#{appdir}/TimeFlow.app/Contents/MacOS/TimeFlowMenuBar"
-    running = lambda do
-      system_command("/usr/bin/pgrep", args: ["-f", exe], must_succeed: false)
-        .exit_status.to_i.zero?
-    end
-    sleep 10
-    unless running.call
+    # ...and confirm the relaunch actually took. If it did not, SAY SO — a warning the user can
+    # act on beats time tracking that quietly stops.
+    sleep 5
+    if running_pids.call.empty?
       system_command "/usr/bin/open", args: ["-a", "#{appdir}/TimeFlow.app"], must_succeed: false
       sleep 5
     end
-    unless running.call
-      opoo "TimeFlow yukseltmeden sonra kendiliginden acilmadi. Menu cubugunda simge " \
-           "yoksa uygulamayi elle acin — acilana kadar zaman takibi calismaz."
+    if running_pids.call.empty?
+      opoo "TimeFlow yukseltmeden sonra acilmadi. Menu cubugunda simge yoksa uygulamayi elle " \
+           "acin — acilana kadar zaman takibi calismaz."
     end
 
     # The accessibility grant is pinned to this signing leaf, not to the bundle
