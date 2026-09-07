@@ -2,8 +2,9 @@ cask "timeflow" do
   version "0.5.16"
   sha256 "73a3cb5b731c6246f17a6b9923b5938f398815b29a4d6b03d36517ea837a7f16"
 
-  url "https://github.com/ercansavas/homebrew-tap/releases/download/v#{version}/TimeFlow.dmg",
-      verified: "github.com/ercansavas/homebrew-tap/"
+  # No `verified:` — Homebrew deprecated it, and the default check already covers this URL:
+  # the download lives on the same repository that hosts this cask.
+  url "https://github.com/ercansavas/homebrew-tap/releases/download/v#{version}/TimeFlow.dmg"
   name "TimeFlow"
   desc "Menubar time-tracker with coding analytics for Apple Silicon"
   homepage "https://github.com/ercansavas/homebrew-tap"
