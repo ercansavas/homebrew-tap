@@ -237,6 +237,67 @@ test_D_already_mounted_exits_1() {
   pass "$name"
 }
 
+
+# (E) The release tag must land on the cask-bump commit. Measured 2026-09-21: v0.5.16…v0.5.19
+# each pointed one commit BEFORE their own bump, because the release (and its tag) was created
+# before the bump was committed. Recording stubs replace gh/git and the script runs against a
+# throwaway copy of the cask, so the ORDER of side effects can be asserted without any of them
+# being real.
+test_E_tag_lands_on_the_cask_bump_commit() {
+  local name="(E) the tag is pinned to the commit that carries the bumped cask"
+  local work log out rc
+  work="$(mktemp -d "${TMPDIR:-/tmp}/g4-order.XXXXXX")"
+  mkdir -p "$work/Casks" "$work/bin"
+  cp "$CASK" "$work/Casks/timeflow.rb"
+  log="$work/calls.log"
+
+  cat >"$work/bin/gh" <<EOF
+#!/usr/bin/env bash
+echo "gh \$*" >>"$log"
+# "release view" must FAIL so the script takes the create path.
+[[ "\${1:-}" == "release" && "\${2:-}" == "view" ]] && exit 1
+exit 0
+EOF
+  cat >"$work/bin/git" <<EOF
+#!/usr/bin/env bash
+echo "git \$*" >>"$log"
+if [[ "\${1:-}" == "rev-parse" && "\${2:-}" == "HEAD" ]]; then echo "abc1234bumpsha"; fi
+exit 0
+EOF
+  chmod +x "$work/bin/gh" "$work/bin/git"
+
+  set +e
+  out="$(cd "$work" && PATH="$work/bin:$PATH" "$SCRIPT" "$FIXTURE_DMG" 2>&1)"
+  rc=$?
+  set -e
+
+  if [[ "$rc" -ne 0 ]]; then
+    fail "$name" "expected exit 0, got $rc; output: $out"; rm -rf "$work"; return
+  fi
+  local create commit push publish
+  create="$(grep -n 'gh release create' "$log" | head -1 | cut -d: -f1)"
+  commit="$(grep -n '^git commit' "$log" | head -1 | cut -d: -f1)"
+  push="$(grep -n '^git push' "$log" | head -1 | cut -d: -f1)"
+  publish="$(grep -n 'gh release edit' "$log" | head -1 | cut -d: -f1)"
+  if [[ -z "$create" || -z "$commit" || -z "$push" || -z "$publish" ]]; then
+    fail "$name" "missing a step; calls: $(cat "$log")"; rm -rf "$work"; return
+  fi
+  if ! grep -q 'gh release create .* --draft' "$log"; then
+    fail "$name" "the release must be created as a DRAFT so nothing is public before the cask is pushed; calls: $(cat "$log")"; rm -rf "$work"; return
+  fi
+  if ! [[ "$create" -lt "$commit" && "$commit" -lt "$push" && "$push" -lt "$publish" ]]; then
+    fail "$name" "expected order create < commit < push < publish; got lines $create/$commit/$push/$publish"; rm -rf "$work"; return
+  fi
+  if ! grep -q 'gh release edit v0.4.1 .*--draft=false .*--target abc1234bumpsha' "$log"; then
+    fail "$name" "publish must pin the tag to the bump commit; calls: $(cat "$log")"; rm -rf "$work"; return
+  fi
+  if ! grep -q '^  version "0.4.1"' "$work/Casks/timeflow.rb"; then
+    fail "$name" "the throwaway cask was not bumped to 0.4.1"; rm -rf "$work"; return
+  fi
+  rm -rf "$work"
+  pass "$name"
+}
+
 # ---- run --------------------------------------------------------------------
 
 setup_stubs
@@ -247,6 +308,7 @@ test_A_dry_run_mints_plist_version
 test_B_extra_positional_exits_2
 test_C_empty_version_exits_1
 test_D_already_mounted_exits_1
+test_E_tag_lands_on_the_cask_bump_commit
 
 cleanup_fixture
 cleanup_stubs

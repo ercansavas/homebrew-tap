@@ -113,25 +113,40 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-# 1) GitHub Release + asset (only after successful attach→read→detach)
+# ORDER, and why it is this order (measured 2026-09-21: v0.5.16…v0.5.19 each pointed at the
+# commit BEFORE their own cask bump, because `gh release create` tagged the remote HEAD of the
+# moment and the bump was committed afterwards):
+#   1) a DRAFT release carries the asset — the slow, failable upload happens first and nothing
+#      is public yet, so a failure here leaves the cask untouched and users unaffected;
+#   2) the cask is bumped, committed and pushed;
+#   3) the draft is published with the tag pinned to THAT commit — one quick API call, so the
+#      window in which the cask names a version with no public release is seconds, and a
+#      re-run heals it (an existing release just gets its asset replaced).
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
   echo "→ release $TAG exists — replacing the $ASSET asset"
   gh release upload "$TAG" "$DMG#$ASSET" --repo "$REPO" --clobber
+  RELEASE_IS_DRAFT=0
 else
-  echo "→ creating release $TAG"
-  gh release create "$TAG" "$DMG#$ASSET" --repo "$REPO" \
+  echo "→ creating draft release $TAG"
+  gh release create "$TAG" "$DMG#$ASSET" --repo "$REPO" --draft \
     --title "TimeFlow $VERSION" \
     --notes "Soft-launch build (ad-hoc signed). Install: brew install --cask ercansavas/tap/timeflow"
+  RELEASE_IS_DRAFT=1
 fi
 
-# 2) Bump the cask (version + sha256) — anchored to the two-space cask indent.
+# 2) Bump the cask (version + sha256) — anchored to the two-space cask indent — and push it.
 sed -i '' -E "s/^  version \"[^\"]*\"/  version \"$VERSION\"/" "$CASK"
 sed -i '' -E "s/^  sha256 \"[^\"]*\"/  sha256 \"$SHA\"/" "$CASK"
-
-# 3) Commit + push the cask
 git add "$CASK"
 git commit --author="ercansavas <ercansavas1@gmail.com>" -m "chore(timeflow): release $VERSION"
 git push
+
+# 3) Publish, with the tag on the commit that actually carries this version's cask.
+if [[ "$RELEASE_IS_DRAFT" -eq 1 ]]; then
+  BUMP_SHA="$(git rev-parse HEAD)"
+  echo "→ publishing $TAG at $BUMP_SHA"
+  gh release edit "$TAG" --repo "$REPO" --draft=false --target "$BUMP_SHA"
+fi
 
 echo ""
 echo "✓ published TimeFlow $VERSION"
