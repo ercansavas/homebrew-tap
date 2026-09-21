@@ -274,11 +274,15 @@ EOF
   if [[ "$rc" -ne 0 ]]; then
     fail "$name" "expected exit 0, got $rc; output: $out"; rm -rf "$work"; return
   fi
+  # `|| true` on every probe: under `set -e` a grep that finds nothing would otherwise kill the
+  # whole harness inside the assignment — no FAIL line, no summary, four green PASSes above and
+  # silence where the fifth should be. That is exactly how this test's own first mutation run
+  # went, and it is the failure mode this repo's memory already names for bash 3.2.
   local create commit push publish
-  create="$(grep -n 'gh release create' "$log" | head -1 | cut -d: -f1)"
-  commit="$(grep -n '^git commit' "$log" | head -1 | cut -d: -f1)"
-  push="$(grep -n '^git push' "$log" | head -1 | cut -d: -f1)"
-  publish="$(grep -n 'gh release edit' "$log" | head -1 | cut -d: -f1)"
+  create="$(grep -n 'gh release create' "$log" | head -1 | cut -d: -f1 || true)"
+  commit="$(grep -n '^git commit' "$log" | head -1 | cut -d: -f1 || true)"
+  push="$(grep -n '^git push' "$log" | head -1 | cut -d: -f1 || true)"
+  publish="$(grep -n 'gh release edit' "$log" | head -1 | cut -d: -f1 || true)"
   if [[ -z "$create" || -z "$commit" || -z "$push" || -z "$publish" ]]; then
     fail "$name" "missing a step; calls: $(cat "$log")"; rm -rf "$work"; return
   fi
