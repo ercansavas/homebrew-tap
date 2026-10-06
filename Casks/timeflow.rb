@@ -1,6 +1,6 @@
 cask "timeflow" do
-  version "0.5.36"
-  sha256 "d9414e964a868e5ee3af070f5d6e8200413f10f9eac1290db0e989cf228199f9"
+  version "0.5.37"
+  sha256 "3e5364d0fb8b857013bc03989893a7bd02129371b690146f4d1f2931eecfa9f6"
 
   # No `verified:` — Homebrew deprecated it, and the default check already covers this URL:
   # the download lives on the same repository that hosts this cask.
